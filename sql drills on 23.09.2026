@@ -1,0 +1,63 @@
+--SCHEMA 
+
+customers(customer_id PK, name, branch_id)
+accounts(account_id PK, customer_id FK, balance, account_type)
+transactions(transaction_id PK, account_id FK, amount, txn_type, created_at)
+
+
+
+--QUESTION  1
+"Show each customer's name alongside a risk label: 'flagged' if they have any single transaction over $50,000 in the last 30 days, otherwise 'normal'. Show all customers,even ones with no transactions at all."
+
+SELECT 
+    c.customer_id,
+    c.name,
+    CASE 
+        WHEN EXISTS (
+            SELECT 1 
+            FROM accounts a
+            JOIN transactions t 
+            ON a.account_id = t.account_id
+            WHERE a.customer_id = c.customer_id
+              AND t.amount > 50000
+              AND t.created_at >= DATEADD(day, -30, GETDATE())
+        ) THEN 'flagged'
+        ELSE 'normal'
+    END AS risk_label
+FROM customers c;
+
+--QUESTION  2
+Show each account's ID and balance, along with a label: 'high_activity' if that account has more than 10 transactions total, otherwise 'low_activity'. Show all accounts, even ones with zero transactions
+
+
+SELECT 
+	a.account_id,
+	a.balance,
+	CASE WHEN COUNT(t.transaction_id) > 10 THEN 'high_activity' 
+		ELSE 'low_activity'
+	END AS label
+	FROM accounts a
+	LEFT JOIN transactions t
+	ON a.account_id = t.account_id
+	GROUP BY a.account_id, a.balance;
+
+
+
+--QUESTION 3
+Find accounts whose total transaction volume (sum of all transaction amounts) is more than doublethe average total volume across all accounts 
+
+
+WITH acct_totals AS
+ (
+	SELECT account_id, SUM(amount) AS total_transaction_volume
+	FROM transactions
+	GROUP BY account_id
+ ),
+ avg_volume AS 
+ (
+	SELECT AVG(total_transaction_volume) AS avg_total
+ FROM acct_totals
+ )
+ SELECT account_id , total_transaction_volume
+ FROM acct_totals 
+ WHERE total_transaction_volume > 2* (SELECT avg_total FROM avg_volume);
